@@ -1,0 +1,4 @@
+#!/usr/bin/env ruby
+
+# Short alias for hyraft-rule
+exec("hyraft-rule", *ARGV)

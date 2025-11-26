@@ -1,0 +1,404 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'fileutils'
+require 'sequel'
+
+# -------------------------------
+# Helper: find application root
+# -------------------------------
+def find_app_root
+  dir = Dir.pwd
+  while dir != '/'
+    boot_path = File.join(dir, 'boot.rb')
+    return dir if File.exist?(boot_path)
+    dir = File.dirname(dir)
+  end
+  nil
+end
+
+APP_ROOT = find_app_root
+
+if APP_ROOT.nil?
+  puts "❌ Error: Could not find boot.rb"
+  puts "Please run from your Hyraft application directory"
+  exit 1
+end
+
+$LOAD_PATH.unshift(APP_ROOT) unless $LOAD_PATH.include?(APP_ROOT)
+
+begin
+  require File.join(APP_ROOT, 'boot')
+  require File.join(APP_ROOT, 'infra', 'database', 'sequel_connection')
+rescue LoadError => e
+  puts "❌ Error loading dependencies: #{e.message}"
+  exit 1
+end
+
+begin
+  Sequel.extension :migration
+  DB = SequelConnection.db
+  DB.test_connection
+rescue => e
+  puts "❌ Database connection failed: #{e.message}"
+  exit 1
+end
+
+MIGRATIONS_DIR = File.join(APP_ROOT, 'infra', 'database', 'migrations')
+
+# -------------------------------
+# Generate Migration Methods
+# -------------------------------
+def generate_migration(migration_name, *columns)
+  timestamp = Time.now.strftime("%Y%m%d%H%M%S")
+  filename = "#{timestamp}_#{migration_name}.rb"
+  full_path = File.join(MIGRATIONS_DIR, filename)
+
+  FileUtils.mkdir_p(MIGRATIONS_DIR)
+  
+  table_name = extract_table_name(migration_name)
+  migration_content = if migration_name.start_with?('create_') && table_name
+    create_table_template(table_name, *columns)
+  else
+    migration_template(migration_name)
+  end
+  
+  File.write(full_path, migration_content)
+
+  puts "✓ Created migration: #{full_path}"
+  puts "Table name detected: #{table_name}" if table_name
+  
+  if columns.any?
+    puts "Columns added: #{columns.join(', ')}"
+  end
+  
+  puts ""
+  puts "To apply this migration, run one of these:"
+  puts "  hyr-rule-db migrate                              # Development environment (default)"
+  puts "  APP_ENV=test hyr-rule-db migrate                 # For test environment"
+  puts "  APP_ENV=development hyr-rule-db migrate          # For development environment"
+  puts "  APP_ENV=production hyr-rule-db migrate           # For production environment"
+end
+
+def extract_table_name(migration_name)
+  case migration_name
+  when /^create_(.+)$/
+    $1
+  when /^add_(.+)_to_(.+)$/
+    $2
+  when /^remove_(.+)_from_(.+)$/
+    $2
+  when /^drop_(.+)$/
+    $1
+  else
+    nil
+  end
+end
+
+def migration_template(migration_name)
+  table_name = extract_table_name(migration_name)
+  
+  if migration_name.start_with?('create_') && table_name
+    create_table_template(table_name)
+  elsif migration_name.start_with?('add_') && table_name
+    column_name = migration_name.match(/^add_(.+)_to_#{table_name}$/)[1]
+    add_column_template(table_name, column_name)
+  elsif migration_name.start_with?('remove_') && table_name
+    column_name = migration_name.match(/^remove_(.+)_from_#{table_name}$/)[1]
+    remove_column_template(table_name, column_name)
+  elsif migration_name.start_with?('drop_') && table_name
+    drop_table_template(table_name)
+  else
+    generic_template(migration_name)
+  end
+end
+
+
+def create_table_template(table_name, *columns)
+  # Parse columns with data types (format: name:string, age:int, price:decimal)
+  columns_code = if columns.any?
+    columns.map do |col|
+      if col.include?(':')
+        col_name, col_type = col.split(':', 2)
+        case col_type.downcase
+        when 'int', 'integer'
+          "Integer :#{col_name}, null: false"
+        when 'string', 'str', 'varchar', 'var'
+          "String :#{col_name}, size: 255, null: false"
+        when 'text'
+          "String :#{col_name}, text: true, null: false"
+        when 'decimal', 'float', 'numeric'
+          "Decimal :#{col_name}, size: [10, 2], null: false"
+        when 'bool', 'boolean'
+          "TrueClass :#{col_name}, null: false"
+        when 'date'
+          "Date :#{col_name}, null: false"
+        when 'datetime', 'timestamp'
+          "DateTime :#{col_name}, null: false"
+        else
+          "String :#{col_name}, size: 255, null: false" # default fallback
+        end
+      else
+        # Default to string if no type specified
+        "String :#{col}, size: 255, null: false"
+      end
+    end.map { |line| "      #{line}" }.join("\n")
+  else
+    "      # Add #{table_name} columns here"
+  end
+
+  <<~RUBY
+    Sequel.migration do
+      up do
+        create_table(:#{table_name}) do
+          primary_key :id, type: :bigint
+    #{columns_code}
+          
+          DateTime :created_at, default: Sequel::CURRENT_TIMESTAMP
+          DateTime :updated_at, default: Sequel::CURRENT_TIMESTAMP
+        end
+      end
+
+      down do
+        drop_table(:#{table_name})
+      end
+    end
+  RUBY
+end
+
+
+
+
+
+
+
+
+def add_column_template(table_name, column_name)
+  <<~RUBY
+    Sequel.migration do
+      change do
+        alter_table(:#{table_name}) do
+          add_column :#{column_name}, String
+        end
+      end
+    end
+  RUBY
+end
+
+
+
+
+
+def remove_column_template(table_name, column_name)
+  <<~RUBY
+    Sequel.migration do
+      change do
+        alter_table(:#{table_name}) do
+          drop_column :#{column_name}
+        end
+      end
+    end
+  RUBY
+end
+
+def drop_table_template(table_name)
+  <<~RUBY
+    Sequel.migration do
+      change do
+        drop_table(:#{table_name})
+      end
+    end
+  RUBY
+end
+
+def generic_template(migration_name)
+  <<~RUBY
+    Sequel.migration do
+      change do
+        # Migration: #{migration_name}
+        # Add your custom migration code here
+      end
+    end
+  RUBY
+end
+
+# -------------------------------
+# Migration methods
+# -------------------------------
+
+def run_migrations
+  migration_files = Dir.glob(File.join(MIGRATIONS_DIR, "[0-9]*_*.rb")).sort
+  if migration_files.empty?
+    puts "No migration files found in #{MIGRATIONS_DIR}"
+    return
+  end
+
+  begin
+    # Get current applied migrations before migration
+    applied_before = if DB.table_exists?(:schema_migrations)
+      DB[:schema_migrations].order(:filename).map { |r| r[:filename].gsub('.rb', '') }
+    else
+      []
+    end
+
+    # Run migrations
+    Sequel::Migrator.run(DB, MIGRATIONS_DIR)
+    
+    # Get applied migrations after migration
+    applied_after = if DB.table_exists?(:schema_migrations)
+      DB[:schema_migrations].order(:filename).map { |r| r[:filename].gsub('.rb', '') }
+    else
+      []
+    end
+
+    # Find which migrations were just applied
+    newly_applied = applied_after - applied_before
+
+    if newly_applied.empty?
+      puts "✓ All files migrated successfully: no pending migrations"
+    else
+      if newly_applied.size == 1
+        puts "✓ Migration applied successfully: #{newly_applied.first}"
+      else
+        puts "✓ #{newly_applied.size} migrations applied successfully:"
+        newly_applied.each { |migration| puts "  - #{migration}" }
+      end
+    end
+  rescue => e
+    puts "✗ Migration failed: #{e.message}"
+    exit 1
+  end
+end
+
+
+
+
+def rollback_migrations
+  puts "Rolling back all migrations..."
+  begin
+    Sequel::Migrator.run(DB, MIGRATIONS_DIR, target: 0)
+    puts "✓ Rollback completed successfully"
+  rescue => e
+    puts "✗ Rollback failed: #{e.message}"
+    exit 1
+  end
+end
+
+def show_status
+  puts "Migration Status:"
+  puts "Database: #{DB.opts[:database]}"
+
+  migration_files = Dir.glob(File.join(MIGRATIONS_DIR, "[0-9]*_*.rb")).sort
+  
+  if DB.table_exists?(:schema_migrations)
+    applied_migrations = DB[:schema_migrations].order(:filename).map { |r| r[:filename].gsub('.rb', '') }
+    latest = applied_migrations.last
+    puts "Schema migrations table: ✓ created"
+    puts "Latest applied migration: #{latest || 'none'}"
+    puts "Applied migrations: #{applied_migrations.size} of #{migration_files.size}"
+    
+    # Show pending migrations
+    pending_migrations = migration_files.reject do |file|
+      filename = File.basename(file, '.rb')
+      applied_migrations.include?(filename)
+    end
+
+    if pending_migrations.any?
+      puts "\nPending migrations:"
+      pending_migrations.each { |f| puts "  - #{File.basename(f)}" }
+      puts "\nRun one of these to apply pending migrations:"
+      puts "  hyr-rule-db migrate                              # Development environment (default)"
+      puts "  APP_ENV=test hyr-rule-db migrate                 # For test environment"
+      puts "  APP_ENV=development hyr-rule-db migrate          # For development environment"
+      puts "  APP_ENV=production hyr-rule-db migrate           # For production environment"
+    else
+      puts "✓ All migrations are applied"
+    end
+  else
+    puts "Schema migrations table: ○ not created yet"
+    puts "Latest applied migration: none"
+    
+    if migration_files.any?
+      puts "\nMigration files:"
+      migration_files.each { |f| puts "  - #{File.basename(f)}" }
+      puts "\nRun one of these to apply pending migrations:"
+      puts "  hyr-rule-db migrate                              # For development environment"
+      puts "  APP_ENV=test hyr-rule-db migrate                 # For test environment"
+      puts "  APP_ENV=development hyr-rule-db migrate          # For development environment"
+      puts "  APP_ENV=production hyr-rule-db migrate           # For production environment"
+    else
+      puts "No migration files found in #{MIGRATIONS_DIR}"
+    end
+  end
+end
+
+
+def show_help
+  puts <<~HELP
+    Hyraft Rule Database Commands
+    Commands:
+      migrate, up        - Run all pending migrations
+      rollback, down     - Rollback all migrations
+      status             - Show migration status
+      reset              - Rollback and re-run all migrations
+      generate <name>    - Create a new migration file
+      help               - Show this help
+
+    Examples:
+      hyr-rule-db migrate
+      hyr-rule-db status
+      hyr-rule-db generate create_users
+      hyr-rule-db generate create_articles title content published_at
+      hyr-rule-db generate create_products name price description user_id
+
+    Migration Generation Examples:
+      hyr-rule-db generate create_users
+      hyr-rule-db generate create_articles title content published_at
+      hyr-rule-db generate create_products name price description
+      hyr-rule-db generate create_orders user_id total_amount status
+      hyr-rule-db generate add_email_to_users
+      hyr-rule-db generate remove_status_from_posts
+      hyr-rule-db generate drop_old_tables
+  HELP
+end
+
+# -------------------------------
+# Main execution
+# -------------------------------
+command = ARGV[0] || "help"
+migration_name = ARGV[1]
+
+case command
+when "migrate", "up"
+  run_migrations
+when "rollback", "down"
+  rollback_migrations
+when "status"
+  show_status
+when "reset"
+  rollback_migrations
+  run_migrations
+when "generate", "g"
+  if ARGV[1]
+    migration_name = ARGV[1]
+    columns = ARGV[2..-1] || []  # Get all remaining arguments as columns
+    generate_migration(migration_name, *columns)
+  else
+    puts "Error: Migration name required"
+    puts ""
+    puts "Usage: hyr-rule-db generate <migration_name> [column1 column2 ...]"
+    puts ""
+    puts "Examples:"
+    puts "  hyr-rule-db generate create_users"
+    puts "  hyr-rule-db generate create_products name price description"
+    puts "  hyr-rule-db generate create_orders user_id total_amount status"
+    puts "  hyr-rule-db generate add_email_to_users"
+    exit 1
+  end
+when "help", "-h", "--help"
+  show_help
+else
+  puts "Unknown command: #{command}"
+  show_help
+  exit 1
+end
