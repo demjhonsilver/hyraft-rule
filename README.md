@@ -7,13 +7,10 @@
 ![Downloads](https://img.shields.io/gem/dt/hyraft-rule)
 ![License](https://img.shields.io/github/license/demjhonsilver/hyraft-rule)
 ![Ruby Version](https://img.shields.io/badge/ruby-%3E%3D%203.4.0-red)
+![Tests](https://github.com/demjhonsilver/hyraft-rule/actions/workflows/ci.yml/badge.svg)
 
 </div>
 
-
-
-
-# Hyraft Rule - ( CLI ) Command system for Hyraft applications
 
 
 A standalone command system (cli) for Hyraft applications.
@@ -51,8 +48,8 @@ hyr-rule assemble {any-folder-name}/users
 hyr-rule assemble admin-app/users
 hyr-rule disassemble admin-app/users
 
-hyr-rule assemble api_app/products
-hyr-rule disassemble api_app/products
+hyr-rule assemble api-app/products
+hyr-rule disassemble api-app/products
 ```
 
 
@@ -220,11 +217,13 @@ Migrations:
 
 
 
+
 ## Development
 
-After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake test` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
+After checking out the repo, run `bundle install` to install dependencies.
 
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and the created tag, and push the `.gem` file to [rubygems.org](https://rubygems.org).
+Then, run `rake test` to run the tests.
+
 
 ## Contributing
 
