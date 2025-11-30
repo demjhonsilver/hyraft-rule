@@ -9,14 +9,20 @@ Gem::Specification.new do |spec|
 
 
   spec.summary = "Hyraft Rule - Command system for Hyraft applications"
-  spec.description = "A standalone command system with migrations for Hyraft applications"
+  spec.description = "This is a standalone command-line interface (CLI) for the Hyraft framework."
   spec.homepage = "https://github.com/demjhonsilver/hyraft-rule"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.4.0"
 
-  spec.metadata["homepage_uri"] = spec.homepage
-  spec.metadata["source_code_uri"] = spec.homepage
-  spec.metadata["changelog_uri"] = "#{spec.homepage}/blob/main/CHANGELOG.md"
+
+  spec.metadata = {
+    "homepage_uri"     => "https://github.com/demjhonsilver/hyraft-rule",
+    "documentation_uri" => "https://www.rubydoc.info/gems/hyraft-rule",
+    "source_code_uri"  => "https://github.com/demjhonsilver/hyraft-rule/tree/main",
+    "changelog_uri"    => "https://github.com/demjhonsilver/hyraft-rule/blob/main/CHANGELOG.md"
+  }
+  
+
 
   # Manual file listing without git dependency
 # In hyraft-rule.gemspec - update the files section
@@ -48,7 +54,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
 
-  
-  spec.add_development_dependency "minitest", "~> 5.0"
-  spec.add_development_dependency "rake", "~> 13.0"
+  # Runtime dependencies
+  spec.add_development_dependency "rake", "~> 13.3"
+  spec.add_development_dependency "minitest", "~> 5.26"
 end

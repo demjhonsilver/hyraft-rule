@@ -13,27 +13,30 @@
 
 
 
-A standalone command system (cli) for Hyraft applications.
+This is a standalone command-line interface (CLI) for the Hyraft framework.
 
-## Installation
 
-Open Gemfile:
-put:
 
+## Syntax ( Command KEY )
 ```bash
-gem 'hyraft-rule'
+
+- hyraft-rule (standard)
+- hyr-rule    (alias)
+
+- hyraft-rule-db (standard / database command)
+- hyr-rule-db    (alias / database command)
+
 ```
 
-Install the gem and add to the application's Gemfile by executing:
-
-```bash
-bundle install
-```
 
 ## Usage ( Assemble / Disassemble )
-- hyr-rule
 
-Package setup:
+
+```bash
+ assemble  - Creates blueprint structure for templates, engine, and adapters.
+
+ disassemble - Deconstructs the project into its core components.
+```
 
 ```bash
 # Default web-app
@@ -55,7 +58,6 @@ hyr-rule disassemble api-app/products
 
 
 ## Usage ( Engine )
-- hyr-rule
 
 Generate:
 
@@ -69,18 +71,22 @@ hyr-rule source article
 
 ```
 
-## Usage ( Web Adapter )
-- hyr-rule
+## Usage ( Web Adapter a.k.a Controller )
 
 Generate:
 
 ```bash
+
+# Only add the specific web adapter
 hyr-rule web-adapter articles
 hyr-rule web-adapter admin-app/products
+
+# Only remove the specific web adapter
+hyr-rule remove-adapter articles
+hyr-rule remove-adapter admin-app/users
 ```
 
 ## Usage ( data-gateway )
-- hyr-rule
 
 Generate:
 

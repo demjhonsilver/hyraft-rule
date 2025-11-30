@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 require 'fileutils'
 
 module Hyraft
@@ -20,6 +18,20 @@ module Hyraft
 
         puts "\e[31m🗑️  COMPLETE Disassembly: Removing ALL '#{@resource_name}' resources\e[0m"
         puts "\e[33m⚠️  WARNING: This will remove engine layer, ALL adapters, and ALL templates!\e[0m"
+        puts ""
+        puts "This will delete:"
+        puts "  • Engine layer (sources, circuits, ports)"
+        puts "  • ALL web adapters (across all app folders)" 
+        puts "  • ALL templates (across all app folders)"
+        puts "  • Data gateway"
+        puts ""
+        print "\e[31mAre you sure you want to continue? (yes/NO): \e[0m"
+        
+        confirmation = $stdin.gets.chomp.downcase
+        unless confirmation == 'yes'
+          puts "\e[32mDisassembly cancelled\e[0m"
+          return
+        end
         
         disassemble_engine_layer  
         disassemble_all_adapters
@@ -29,7 +41,7 @@ module Hyraft
         puts "\e[32m✅ Complete Disassembly: ALL '#{@resource_name}' resources removed\e[0m"
       end
 
-      private
+ private
 
       def parse_resource_input
         return unless @resource_input
